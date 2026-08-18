@@ -14,6 +14,8 @@ EvalHub 是一个可复现的大语言模型自动化评测平台。本仓库从
 - 使用 Pydantic 校验请求、响应、测试样本和 Token 用量
 - 使用 SQLite 保存 datasets、evaluation jobs 和 evaluation runs
 - 为三张 SQLite 表提供完整 CRUD、外键和事务保护
+- 使用健康检查命令验证项目入口和本地数据库
+- 使用 HTTPX 探测接口，并区分 HTTP、超时和网络错误
 
 ## 环境要求
 
@@ -58,6 +60,21 @@ python -m evalhub_core.database
 
 数据库文件属于本地运行产物，已由 `.gitignore` 忽略。
 
+运行健康检查：
+
+```powershell
+python -m evalhub_core.health
+```
+
+探测 HTTP 接口：
+
+```powershell
+python scripts/http_probe.py https://httpbin.org/get 10
+```
+
+输出包含请求方法、URL、状态码、耗时和结果分类。退出码 `0` 表示成功，
+`1` 表示 HTTP 错误，`2` 表示超时，`3` 表示其他网络错误。
+
 ## 项目结构
 
 ```text
@@ -66,6 +83,8 @@ EvalHub/
 │   └── eval_dataset.jsonl
 ├── docs/
 │   ├── architecture.md
+│   ├── conflict_notes.md
+│   ├── reproduce_sop.md
 │   └── roadmap.md
 ├── evalhub_core/
 │   ├── __init__.py
@@ -77,6 +96,10 @@ EvalHub/
 │   ├── provider.py
 │   ├── schemas.py
 │   └── service.py
+├── notes/
+│   └── httpx_reading_card.md
+├── scripts/
+│   └── http_probe.py
 ├── tests/
 ├── .env.example
 ├── .gitignore
@@ -157,6 +180,59 @@ Day 11–20 主要风险：
 - Pydantic Schema、API 字段和数据库列可能发生不一致
 - SQLite 并发写入可能产生锁竞争，事务边界需要明确
 - Docker 内外路径、环境变量和数据卷配置可能导致复现失败
+
+## Day 11：Git/GitHub 可复现协作
+
+Day 11 的目标是完整走通 `feature branch → PR → review → merge`，并让其他人
+能够按文档复现项目。
+
+已完成：
+
+- 用 `feature/health-check` 开发并合并最小健康检查
+- 编写仓库无关的 [Python 项目复现 SOP](docs/reproduce_sop.md)
+- 在两个练习分支中制造并解决 README 冲突
+- 保存 [Git 冲突练习记录](docs/conflict_notes.md)，说明选择最终内容的依据
+
+验收命令：
+
+```powershell
+python -m evalhub_core.health
+python -m pytest -q
+git status
+git log --oneline --graph --decorate -10
+```
+
+预期结果：健康检查正常、全部测试通过、工作区干净，并能在提交图中看到
+功能分支和合并记录。
+
+## Day 12：HTTP、REST 与接口调试
+
+Day 12 的目标是读懂一次 HTTP 请求的来回数据，并把不同失败情况准确分类，
+为后续接入真实模型 API 做准备。
+
+已实现：
+
+- 使用 HTTPX 发送带显式超时的同步 GET 请求
+- 输出请求方法、URL、状态码和耗时，不输出 Authorization 等敏感信息
+- 分类 `200`、`400`、`401`、`404`、`429`、`500`、超时和网络错误
+- 用测试替代不稳定的公网响应，稳定覆盖全部分类分支
+- 编写 [HTTPX QuickStart 阅读卡](notes/httpx_reading_card.md)
+
+运行探测脚本：
+
+```powershell
+python scripts/http_probe.py https://httpbin.org/get 10
+```
+
+运行 Day 12 测试：
+
+```powershell
+python -m pytest tests/test_http_probe.py -q
+```
+
+预期结果：脚本输出 `result=<分类>`；测试覆盖成功、客户端错误、认证错误、
+限流、服务端错误、超时和网络错误。公网接口的实际状态可能变化，因此验收
+以自动化测试为准。
 
 ## 安全
 
