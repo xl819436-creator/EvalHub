@@ -19,10 +19,10 @@
 
 - 实验日期：2026-08-18
 - 操作系统：Windows
-- Python版本：`<<PYTHON_VERSION>>`
+- Python版本：`3.11.15`
 - Python解释器：`D:\Annaconda\envs\evalhub-py311\python.exe`
-- httpx版本：`<<HTTPX_VERSION>>`
-- pytest版本：`<<PYTEST_VERSION>>`
+- httpx版本：`0.28.1`
+- pytest版本：`8.4.2`
 - Python是否支持TaskGroup：是
 - 实验样本数：10
 
@@ -86,20 +86,20 @@ from scripts.http_probe import classify_status
 
 | 实验 | 总耗时/秒 | 成功数 | 错误数 |
 |---|---:|---:|---:|
-| 串行执行 | <<SERIAL_SECONDS>> | 10 | 0 |
-| gather并发 | <<GATHER_SECONDS>> | 10 | 0 |
-| TaskGroup并发 | <<TASK_GROUP_SECONDS>> | 10 | 0 |
-| gather异常隔离 | <<GATHER_ERROR_SECONDS>> | 9 | 1 |
-| TaskGroup异常隔离 | <<TASK_GROUP_ERROR_SECONDS>> | 9 | 1 |
+| 串行执行 | 5.695 | 10 | 0 |
+| gather并发 | 1.023 | 10 | 0 |
+| TaskGroup并发 | 1.010 | 10 | 0 |
+| gather异常隔离 | 0.996 | 9 | 1 |
+| TaskGroup异常隔离 | 1.020 | 9 | 1 |
 
 本次实验的原始汇总输出为：
 
 ```text
-serial: total=<<SERIAL_SECONDS>>s success=10 error=0
-gather: total=<<GATHER_SECONDS>>s success=10 error=0
-task_group: total=<<TASK_GROUP_SECONDS>>s success=10 error=0
-gather_with_error: total=<<GATHER_ERROR_SECONDS>>s success=9 error=1
-task_group_with_error: total=<<TASK_GROUP_ERROR_SECONDS>>s success=9 error=1
+serial: total=5.695s success=10 error=0
+gather: total=1.023s success=10 error=0
+task_group: total=1.010s success=10 error=0
+gather_with_error: total=0.996s success=9 error=1
+task_group_with_error: total=1.020s success=9 error=1
 ```
 
 ## 5. 加速比
@@ -112,8 +112,8 @@ task_group_with_error: total=<<TASK_GROUP_ERROR_SECONDS>>s success=9 error=1
 
 本次实测结果：
 
-- gather相对于串行的加速比：`<<GATHER_SPEEDUP>>` 倍；
-- TaskGroup相对于串行的加速比：`<<TASK_GROUP_SPEEDUP>>` 倍。
+- gather相对于串行的加速比：`5.57` 倍；
+- TaskGroup相对于串行的加速比：`5.64` 倍。
 
 根据实测数据，gather和TaskGroup的总耗时都明显低于串行执行。
 
@@ -257,7 +257,8 @@ D:\Annaconda\envs\evalhub-py311\python.exe -W always -m scripts.async_runner --f
 本次观察到的真实警告为：
 
 ```text
-<<MISSING_AWAIT_WARNING>>
+D:\PycharmProjects\EvalHub-course\scripts\async_runner.py:286: RuntimeWarning: coroutine 'simulated_request' was never awaited
+RuntimeWarning: Enable tracemalloc to get the object allocation traceback
 ```
 
 产生警告的原因是：
@@ -389,7 +390,7 @@ D:\Annaconda\envs\evalhub-py311\python.exe -m pytest tests\test_async_runner.py 
 专项测试结果：
 
 ```text
-<<DAY13_TEST_RESULT>>
+8 passed in 0.36s
 ```
 
 全量回归测试命令：
@@ -401,7 +402,7 @@ D:\Annaconda\envs\evalhub-py311\python.exe -m pytest -q
 全量回归结果：
 
 ```text
-<<FULL_TEST_RESULT>>
+52 passed in 0.89s
 ```
 
 专项测试用于验证Day 13新增功能，全量回归测试用于确认Day 13
