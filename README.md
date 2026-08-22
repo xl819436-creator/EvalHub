@@ -335,3 +335,17 @@ Day 13的并发属于等待型任务的异步并发，不是CPU多进程或GPU�
 
 `.env.example`只保存变量名。真实`.env`、API Key、PyCharm配置、
 虚拟环境、数据库和生成输出均不得提交。
+
+## Day 15：FastAPI API
+
+启动（在仓库根目录执行）：
+
+    python -m uvicorn app.main:app --reload
+
+Swagger 文档：http://127.0.0.1:8000/docs
+
+curl 示例（Windows PowerShell 中执行；`ds-1` 换成你创建数据集后返回的 id）：
+
+    curl.exe -X POST http://127.0.0.1:8000/datasets -H "Content-Type: application/json" -d "{\"name\":\"demo\",\"samples\":[{\"input\":\"你好\",\"expected_output\":\"你好呀\"}]}"
+
+    curl.exe -X POST http://127.0.0.1:8000/evaluations -H "Content-Type: application/json" -d "{\"dataset_id\":\"ds-1\",\"providers\":[\"mock\"],\"evaluators\":[\"exact_match\"],\"concurrency\":3}"
