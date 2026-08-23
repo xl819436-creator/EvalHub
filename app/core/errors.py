@@ -1,4 +1,4 @@
-"""EvalHub 统一业务异常与 FastAPI 异常处理器（Day 16）。"""
+"""统一业务异常与 FastAPI 异常处理器。"""
 from __future__ import annotations
 
 from fastapi import FastAPI, Request
@@ -6,12 +6,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.schemas import ErrorResponse
+from app.schemas.error import ErrorResponse
 
 
 class AppError(Exception):
-    """业务异常基类。"""
-
     status_code = 500
     code = "INTERNAL_ERROR"
 
@@ -22,15 +20,11 @@ class AppError(Exception):
 
 
 class NotFoundError(AppError):
-    """资源不存在 -> 404。"""
-
     status_code = 404
     code = "NOT_FOUND"
 
 
 class ConflictError(AppError):
-    """资源冲突（如重复创建）-> 409。"""
-
     status_code = 409
     code = "CONFLICT"
 
@@ -40,12 +34,7 @@ def _request_id(request: Request) -> str:
 
 
 def _error_body(code: str, message: str, request_id: str, details: dict | None) -> dict:
-    return ErrorResponse(
-        code=code,
-        message=message,
-        request_id=request_id,
-        details=details,
-    ).model_dump()
+    return ErrorResponse(code=code, message=message, request_id=request_id, details=details).model_dump()
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -79,10 +68,5 @@ def register_error_handlers(app: FastAPI) -> None:
             errors.append(cleaned)
         return JSONResponse(
             status_code=422,
-            content=_error_body(
-                "VALIDATION_ERROR",
-                "request validation failed",
-                _request_id(request),
-                {"errors": errors},
-            ),
+            content=_error_body("VALIDATION_ERROR", "request validation failed", _request_id(request), {"errors": errors}),
         )
