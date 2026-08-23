@@ -1,20 +1,17 @@
-"""EvalHub - Day 16：API 校验与统一错误测试（>=8 个用例，不调用外部 API）。"""
+"""EvalHub - Day 16/17：API 校验与统一错误测试（不调用外部 API）。"""
 from __future__ import annotations
 
-import app.main as main
 from fastapi.testclient import TestClient
 
-client = TestClient(main.app)
+from app.api.dependencies import reset_repositories
+from app.main import app
+
+client = TestClient(app)
 
 
 def _reset_store() -> None:
-    """清空内存暂存并重置 ID 计数器，保证每个用例独立（都从 ds-1/job-1 开始）。"""
-    main.DATASETS.clear()
-    main.DATASET_NAMES.clear()
-    main._NEXT_DATASET_ID = 1
-    main._NEXT_JOB_ID = 1
-
-
+    """重置内存存储（经依赖注入层），保证每个用例独立。"""
+    reset_repositories()
 
 
 def _valid_dataset() -> dict:
