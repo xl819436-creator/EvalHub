@@ -1,17 +1,7 @@
-"""EvalHub - Day 16/17：API 校验与统一错误测试（不调用外部 API）。"""
+"""EvalHub - Day 16/17/18：API 校验与统一错误测试（不调用外部 API）。"""
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
-
-from app.api.dependencies import reset_repositories
-from app.main import app
-
-client = TestClient(app)
-
-
-def _reset_store() -> None:
-    """重置内存存储（经依赖注入层），保证每个用例独立。"""
-    reset_repositories()
+from tests.conftest import client
 
 
 def _valid_dataset() -> dict:
@@ -53,7 +43,6 @@ def test_unknown_route_returns_unified_404():
 
 
 def test_create_dataset_valid():
-    _reset_store()
     resp = client.post("/datasets", json=_valid_dataset())
     assert resp.status_code == 201
     body = resp.json()
@@ -62,7 +51,6 @@ def test_create_dataset_valid():
 
 
 def test_create_dataset_blank_name_rejected():
-    _reset_store()
     payload = _valid_dataset()
     payload["name"] = "   "
     resp = client.post("/datasets", json=payload)
@@ -71,14 +59,12 @@ def test_create_dataset_blank_name_rejected():
 
 
 def test_create_dataset_empty_samples_rejected():
-    _reset_store()
     payload = {"name": "demo", "samples": []}
     resp = client.post("/datasets", json=payload)
     assert resp.status_code == 422
 
 
 def test_duplicate_dataset_name_conflict():
-    _reset_store()
     assert client.post("/datasets", json=_valid_dataset()).status_code == 201
     resp = client.post("/datasets", json=_valid_dataset())
     assert resp.status_code == 409
@@ -88,7 +74,6 @@ def test_duplicate_dataset_name_conflict():
 
 
 def test_create_evaluation_valid():
-    _reset_store()
     client.post("/datasets", json=_valid_dataset())
     resp = client.post("/evaluations", json=_valid_evaluation("ds-1"))
     assert resp.status_code == 202
@@ -96,7 +81,6 @@ def test_create_evaluation_valid():
 
 
 def test_evaluation_unknown_dataset_404():
-    _reset_store()
     resp = client.post("/evaluations", json=_valid_evaluation("ds-99"))
     assert resp.status_code == 404
     body = resp.json()
@@ -105,7 +89,6 @@ def test_evaluation_unknown_dataset_404():
 
 
 def test_evaluation_empty_providers_rejected():
-    _reset_store()
     payload = _valid_evaluation("ds-1")
     payload["providers"] = []
     resp = client.post("/evaluations", json=payload)
@@ -113,7 +96,6 @@ def test_evaluation_empty_providers_rejected():
 
 
 def test_evaluation_empty_evaluators_rejected():
-    _reset_store()
     payload = _valid_evaluation("ds-1")
     payload["evaluators"] = []
     resp = client.post("/evaluations", json=payload)
@@ -121,7 +103,6 @@ def test_evaluation_empty_evaluators_rejected():
 
 
 def test_evaluation_concurrency_out_of_range():
-    _reset_store()
     for bad in (0, 21):
         payload = _valid_evaluation("ds-1")
         payload["concurrency"] = bad
@@ -129,7 +110,6 @@ def test_evaluation_concurrency_out_of_range():
 
 
 def test_evaluation_temperature_out_of_range():
-    _reset_store()
     for bad in (-0.1, 2.5):
         payload = _valid_evaluation("ds-1")
         payload["temperature"] = bad
@@ -137,7 +117,6 @@ def test_evaluation_temperature_out_of_range():
 
 
 def test_error_response_has_three_required_fields():
-    _reset_store()
     resp = client.post("/evaluations", json=_valid_evaluation("ds-9"))
     body = resp.json()
     assert {"code", "message", "request_id"}.issubset(body.keys())
