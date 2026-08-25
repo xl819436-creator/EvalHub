@@ -349,3 +349,23 @@ curl 示例（Windows PowerShell 中执行；`ds-1` 换成你创建数据集后�
     curl.exe -X POST http://127.0.0.1:8000/datasets -H "Content-Type: application/json" -d "{\"name\":\"demo\",\"samples\":[{\"input\":\"你好\",\"expected_output\":\"你好呀\"}]}"
 
     curl.exe -X POST http://127.0.0.1:8000/evaluations -H "Content-Type: application/json" -d "{\"dataset_id\":\"ds-1\",\"providers\":[\"mock\"],\"evaluators\":[\"exact_match\"],\"concurrency\":3}"
+
+## 容器化快速启动（Docker）
+
+前置：安装 Docker Desktop（Windows）并确保 Docker 引擎运行。
+
+```powershell
+# 1. 构建镜像并后台启动
+docker compose up --build -d
+
+# 2. 查看健康状态（等待 healthy）
+docker compose ps
+
+# 3. 打开交互式 API 文档
+# 浏览器访问 http://localhost:8000/docs
+
+# 4. 停止容器（数据卷保留，数据不丢）
+docker compose down
+
+# 5. 再次启动，数据仍在
+docker compose up -d
