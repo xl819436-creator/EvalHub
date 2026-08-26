@@ -50,3 +50,31 @@ def _override_db():
 
 app.dependency_overrides[get_db] = _override_db
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def block_real_network(monkeypatch):
+    """Day 19：全测试套件禁止真实公网连接。
+
+    只拦截“出站到公网”的 TCP 连接；本机回环（127.0.0.1 / ::1 / localhost）
+    放行——Windows 上 asyncio 的 ProactorEventLoop 内部要用回环连接做唤醒，
+    不能拦。任何测试试图连接公网（例如误调用收费 API）都会直接失败。
+
+    MockProvider / httpx.MockTransport / TestClient 不经过真实网络，不受影响。
+    """
+    import socket
+
+    original_connect = socket.socket.connect
+    loopback_hosts = {"127.0.0.1", "::1", "localhost"}
+
+    def guarded_connect(self, address, *args, **kwargs):
+        host = address[0] if isinstance(address, tuple) else address
+        if host in loopback_hosts:
+            return original_connect(self, address, *args, **kwargs)
+        raise OSError(
+            "EvalHub 测试禁止真实公网连接，"
+            "请使用 MockProvider / httpx.MockTransport，"
+            f"被拦截的目标地址：{address}"
+        )
+
+    monkeypatch.setattr(socket.socket, "connect", guarded_connect)
