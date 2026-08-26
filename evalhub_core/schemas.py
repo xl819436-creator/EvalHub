@@ -127,6 +127,14 @@ class LLMResponse(StrictModel):
         default=None,
         description="Token使用情况",
     )
+    status_code: Optional[int] = Field(
+        default=None,
+        description="HTTP状态码；成功为200，失败为对应错误码（Day 23）",
+    )
+    retry_count: Optional[int] = Field(
+        default=None,
+        description="本次请求的重试次数（Day 23）",
+    )
 
     @property
     def success(self) -> bool:
