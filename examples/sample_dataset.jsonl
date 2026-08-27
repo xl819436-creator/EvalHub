@@ -1,0 +1,6 @@
+{"id":"case-001","category":"knowledge","input":"中国的首都是哪里？","expected":"北京","evaluator_names":["exact_match"],"metadata":{"source":"sample","year":2026}}
+{"id":"case-002","category":"math","input":"1+1等于多少？","expected":"2","evaluator_names":["exact_match"],"metadata":{"source":"sample"}}
+{"id":"case-003","category":"math","input":"7乘8等于多少？","expected":"56","evaluator_names":["exact_match"],"metadata":{"source":"sample"}}
+{"id":"case-004","category":"knowledge","input":"太阳从哪个方向升起？","expected":"东方","evaluator_names":["exact_match"],"metadata":{"source":"sample"}}
+{"id":"case-005","category":"logic","input":"如果明天下雨，我们就不去公园。今天没有下雨，所以我们去公园了吗？","expected":"无法确定","evaluator_names":["exact_match"],"metadata":{"source":"sample","note":"考察充分必要条件"}}
+{"id":"case-006","category":"knowledge","input":"水的化学式是什么？","expected":"H2O","evaluator_names":["exact_match"],"metadata":{"source":"sample"}}
