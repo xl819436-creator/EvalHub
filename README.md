@@ -54,10 +54,9 @@ docker compose up --build -d
 
 ## 当前状态
 
-- `origin/main` 代码基线已推进到 Day 26；本地工作树已进一步补齐 FastAPI 生命周期接口、Day 21 真实调用脚本和配套文档。
-- 下一阶段是 Day 27：完成 v0.1.0 发布验收、基准实验和空目录复现。
-- 当前版本为 `0.1.0-dev`，仓库目前没有 `v0.1.0` Release 或 tag。
-- 本 README 描述的是当前工作树；提交到远程前，GitHub 上的 README 和代码仍是上一版。个人学习 Day 是否完成，仍以学习记录和验收结果为准。
+- 代码基线已推进到 Day 27 收尾：全量测试 `184 passed`，基准实验完成（见 [docs/benchmark.md](docs/benchmark.md)），空目录复现通过。
+- tag `v0.1.0` 已创建并推送；GitHub Release 发布后即完成 v0.1.0 交付。
+- 本 README 描述的是当前工作树；个人学习 Day 是否完成，仍以学习记录和验收结果为准。
 
 ## 当前能力
 
@@ -572,7 +571,7 @@ docker compose down
 
 ## 开发进度与发布计划
 
-- 当前 `origin/main` 的代码基线：Day 26 报告功能合并后的提交 `69d383e`。
-- 本地工作树已补齐 Day 21 真实调用脚本、Provider 映射文档、测试策略文档和 FastAPI 任务生命周期接口，尚未 commit/push。
-- 下一步：Day 27，完成至少 30 个测试、基准实验、空目录复现和 `v0.1.0` Release。
-- 最近一次本地验证：Python 3.11.15、pytest 8.4.2，`184 passed`；真实模型调用未执行。
+- 当前 `origin/main` 代码基线：Day 27 收尾提交 `4970229`（含 FastAPI 任务生命周期、Day 21 真实调用脚本与文档等）。
+- 已完成：30+ 测试（实际 `184 passed`）、1/5/10 并发基准实验（`docs/benchmark.md` + `docs/benchmark_raw.txt`）、空目录复现、README 导航与 Quick Start。
+- 剩余：GitHub Release 网页发布（tag `v0.1.0` 已推送）。
+- 最近一次复现验证：Python 3.11.15、pytest 8.4.2，`184 passed`；真实模型调用未执行。
