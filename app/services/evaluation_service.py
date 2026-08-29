@@ -7,14 +7,24 @@ from app.core.errors import NotFoundError
 from app.models.dataset import Dataset
 from app.models.evaluation import EvaluationJob
 from app.repositories.job_repository import JobRepository
-from app.schemas.evaluation import EvaluationCreate, JobResponse
+from app.schemas.evaluation import (
+    EvaluationCreate,
+    JobResponse,
+    JobStatusResponse,
+    RunResponse,
+)
+from evalhub_core.report_builder import build_markdown_report
 
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "pending": {"running"},
-    "running": {"completed", "failed"},
+    "pending": {"running", "cancelled"},
+    "running": {"completed", "completed_with_errors", "failed", "cancelled"},
     "completed": set(),
+    "completed_with_errors": set(),
     "failed": set(),
+    "cancelled": set(),
 }
+
+TERMINAL_STATUSES = {"completed", "completed_with_errors", "failed", "cancelled"}
 
 
 class EvaluationService:
@@ -47,7 +57,9 @@ class EvaluationService:
         )
 
     def transition(self, job_id: str, new_status: str) -> None:
-        job = self._repo.get_job(job_id)
+        git
+        checkout
+        main        job = self._repo.get_job(job_id)
         if job is None:
             raise NotFoundError(f"job {job_id!r} not found")
         if new_status not in ALLOWED_TRANSITIONS.get(job.status, set()):
@@ -55,6 +67,99 @@ class EvaluationService:
                 f"invalid transition {job.status!r} -> {new_status!r}"
             )
         self._repo.update_progress(job, new_status)
+
+    def get(self, job_id: str):
+        """查询任务；不存在时使用统一业务异常。"""
+        job = self._repo.get_job(job_id)
+        if job is None:
+            raise NotFoundError(f"job {job_id!r} not found")
+        return job
+
+    def get_status(self, job_id: str, offset: int = 0, limit: int = 100) -> JobStatusResponse:
+        """返回任务状态、计数和分页后的 run 摘要。"""
+        job = self.get(job_id)
+        all_runs = sorted(job.runs, key=lambda run: run.sample_index)
+        runs = all_runs[offset : offset + limit]
+        completed = sum(run.status == "completed" for run in all_runs)
+        failed = sum(run.status == "failed" for run in all_runs)
+        cancelled = sum(run.status == "cancelled" for run in all_runs)
+        return JobStatusResponse(
+            **self._job_response_data(job),
+            total_runs=len(all_runs),
+            completed_runs=completed,
+            failed_runs=failed,
+            cancelled_runs=cancelled,
+            runs=[
+                RunResponse(
+                    run_id=run.id,
+                    sample_index=run.sample_index,
+                    status=run.status,
+                    score=run.score,
+                )
+                for run in runs
+            ],
+        )
+
+    def cancel(self, job_id: str):
+        """取消未终止任务；终止任务重复取消时原样返回。"""
+        job = self.get(job_id)
+        if job.status in TERMINAL_STATUSES:
+            return job
+        return self._repo.update_progress(job, "cancelled")
+
+    def to_response(self, job) -> JobResponse:
+        """把 ORM 任务转换为创建/取消接口共用的响应模型。"""
+        return JobResponse(**self._job_response_data(job))
+
+    def build_report(self, job_id: str) -> str:
+        """从已持久化的 runs 生成 Markdown 报告，不补造缺失字段。"""
+        job = self.get(job_id)
+        runs = sorted(job.runs, key=lambda run: run.sample_index)
+        completed = sum(run.status == "completed" for run in runs)
+        scores = [run.score for run in runs if run.score is not None]
+        accuracy = sum(scores) / len(scores) if scores else 0.0
+        total = len(runs)
+        failures = [
+            {
+                "id": run.id,
+                "expected": "未持久化",
+                "actual": "未持久化",
+                "reason": run.status,
+            }
+            for run in runs
+            if run.status != "completed"
+        ]
+        manifest = {
+            "dataset_hash": "未由当前 API 持久化",
+            "git_commit": "未由当前 API 持久化",
+            "provider": ", ".join(job.providers),
+            "model": "未由当前 API 持久化",
+            "seed": "未由当前 API 持久化",
+            "start_time": "未由当前 API 持久化",
+        }
+        return build_markdown_report(
+            job_id,
+            manifest=manifest,
+            groups={
+                "all": {
+                    "total": total,
+                    "success_rate": completed / total if total else 0.0,
+                    "accuracy": accuracy,
+                }
+            },
+            failures=failures,
+        )
+
+    @staticmethod
+    def _job_response_data(job) -> dict:
+        return {
+            "job_id": job.id,
+            "status": job.status,
+            "dataset_id": job.dataset_id,
+            "providers": job.providers,
+            "evaluators": job.evaluators,
+            "concurrency": job.concurrency,
+        }
 
 """Day 26：任务管理器（内存版）——状态机 + 取消幂等。"""
 

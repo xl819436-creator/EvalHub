@@ -12,7 +12,7 @@ class EvaluationJob(Base):
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     dataset_id: Mapped[str] = mapped_column(ForeignKey("datasets.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     providers: Mapped[list] = mapped_column(JSON, nullable=False)
     evaluators: Mapped[list] = mapped_column(JSON, nullable=False)
     concurrency: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
@@ -29,7 +29,7 @@ class EvaluationRun(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     job_id: Mapped[str] = mapped_column(ForeignKey("evaluation_jobs.id"), nullable=False)
     sample_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
     score: Mapped[float | None] = mapped_column(nullable=True)
 
     job: Mapped["EvaluationJob"] = relationship(back_populates="runs")

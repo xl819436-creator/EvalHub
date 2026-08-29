@@ -53,3 +53,22 @@ class JobResponse(ApiModel):
             }]
         },
     )
+
+
+class RunResponse(ApiModel):
+    """任务中的一条持久化运行记录。"""
+
+    run_id: str
+    sample_index: int = Field(ge=0)
+    status: str
+    score: float | None = None
+
+
+class JobStatusResponse(JobResponse):
+    """任务详情和当前已持久化的 run 摘要。"""
+
+    total_runs: int = Field(ge=0)
+    completed_runs: int = Field(ge=0)
+    failed_runs: int = Field(ge=0)
+    cancelled_runs: int = Field(ge=0)
+    runs: List[RunResponse]

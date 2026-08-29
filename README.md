@@ -4,6 +4,13 @@ EvalHub 是一个可复现的大语言模型自动化评测平台。本仓库从
 的Day 10开始独立维护；每日学习过程保留在
 [40day-lab](https://github.com/xl819436-creator/40day-lab)。
 
+## 当前状态
+
+- `origin/main` 代码基线已推进到 Day 26；本地工作树已进一步补齐 FastAPI 生命周期接口、Day 21 真实调用脚本和配套文档。
+- 下一阶段是 Day 27：完成 v0.1.0 发布验收、基准实验和空目录复现。
+- 当前版本为 `0.1.0-dev`，仓库目前没有 `v0.1.0` Release 或 tag。
+- 本 README 描述的是当前工作树；提交到远程前，GitHub 上的 README 和代码仍是上一版。个人学习 Day 是否完成，仍以学习记录和验收结果为准。
+
 ## 当前能力
 
 - 读取并验证UTF-8 JSONL评测数据集
@@ -14,11 +21,18 @@ EvalHub 是一个可复现的大语言模型自动化评测平台。本仓库从
 - 使用Pydantic校验请求、响应、测试样本和Token用量
 - 使用SQLite保存datasets、evaluation jobs和evaluation runs
 - 为三张SQLite表提供完整CRUD、外键和事务保护
-- 使用健康检查命令验证项目入口和本地数据库
+- 使用健康检查命令验证健康检查入口
 - 使用HTTPX探测接口，并区分HTTP、超时和网络错误
 - 使用asyncio比较等待型任务的串行与并发耗时
 - 使用gather和TaskGroup并发执行任务并隔离单任务异常
 - 使用httpx.AsyncClient并发请求并复用客户端连接池
+- 使用Queue、Worker、Semaphore和超时控制执行20个异步任务
+- 使用`BaseLLMProvider`、`DeepSeekProvider`、`MockLLMProvider`和`ProviderFactory`
+- 对429/5xx/超时执行有上限的重试，并记录错误类型、状态码和重试次数
+- 对数据集执行Pydantic校验、规范化SHA-256哈希和运行参数快照
+- 提供Exact Match、JSON Schema评分器，以及成功率、准确率、格式率、P50/P95、Token和成本聚合
+- 生成包含配置快照、分组指标、失败案例和已知限制的Markdown报告
+- 提供FastAPI接口：数据集创建、评测任务创建/查询/取消和 Markdown 报告
 
 ## 环境要求
 
@@ -42,6 +56,8 @@ python -m pip check
 ```powershell
 python -m pytest -q
 ```
+
+如果出现 `No module named pytest` 或其他依赖缺失，请确认当前终端已经激活本项目环境，并重新执行上面的依赖安装命令；不要使用另一个 Python 解释器运行测试。
 
 查看命令行帮助：
 
@@ -67,6 +83,18 @@ python -m evalhub_core.database
 
 ```powershell
 python -m evalhub_core.health
+```
+
+校验带 Schema 和哈希的数据集：
+
+```powershell
+python scripts/validate_dataset.py examples/sample_dataset.jsonl
+```
+
+运行 Day 14 的20任务 Worker 演示：
+
+```powershell
+python -m scripts.run_day14
 ```
 
 探测HTTP接口：
@@ -96,30 +124,66 @@ python -W always -m scripts.async_runner --forget-await
 EvalHub/
 ├── data/
 │   └── eval_dataset.jsonl
+├── app/
+│   ├── api/                 # FastAPI 路由和依赖
+│   ├── core/                # 配置、数据库、中间件、错误处理
+│   ├── models/              # SQLAlchemy 模型
+│   ├── repositories/        # 数据访问
+│   ├── schemas/             # 请求/响应模型
+│   └── services/            # API 业务逻辑
 ├── docs/
 │   ├── architecture.md
+│   ├── database_decisions.md
+│   ├── dataset_schema.md
+│   ├── evaluator_comparison.md
+│   ├── module_responsibilities.md
+│   ├── provider_response_mapping.md
+│   ├── retry_policy.md
 │   ├── conflict_notes.md
 │   ├── reproduce_sop.md
+│   ├── testing_strategy.md
 │   └── roadmap.md
 ├── evalhub_core/
 │   ├── __init__.py
 │   ├── __main__.py
+│   ├── async_deepseek.py
 │   ├── cli.py
+│   ├── cost.py
 │   ├── database.py
+│   ├── dataset_version.py
+│   ├── deepseek.py
+│   ├── eval_runner.py
 │   ├── evaluator.py
+│   ├── evaluators.py
 │   ├── health.py
+│   ├── job_state_machine.py
 │   ├── loader.py
+│   ├── llm_config.py
+│   ├── llm_provider.py
+│   ├── metrics.py
 │   ├── provider.py
+│   ├── report_builder.py
+│   ├── retry_policy.py
 │   ├── schemas.py
-│   └── service.py
+│   ├── service.py
+│   └── worker_pool.py
+├── examples/
+│   ├── eval_report.md
+│   └── sample_dataset.jsonl
 ├── experiments/
 │   └── async_vs_serial.md
 ├── notes/
+│   ├── day24.md
+│   ├── day25.md
+│   ├── day26.md
 │   └── httpx_reading_card.md
 ├── scripts/
 │   ├── async_runner.py
-│   └── http_probe.py
-├── tests/
+│   ├── day21_real_call.py
+│   ├── http_probe.py
+│   ├── run_day14.py
+│   └── validate_dataset.py
+├── tests/                   # 离线行为测试和 API 测试
 ├── .env.example
 ├── .gitignore
 ├── LICENSE
@@ -162,17 +226,20 @@ Day 10已实现：
 本仓库的JSONL加载器、评分器、Provider抽象、Pydantic模型和SQLite
 CRUD均为学习者独立实现。本项目不是OpenAI Evals的Fork。
 
-## MVP边界
+## 当前实现边界与限制
 
-v0.1.0计划包含Provider、评分器、SQLite、FastAPI、后台任务和报告。
+截至 Day 26，核心评测链路已经包含 Provider、评分器、SQLite、任务执行、取消和报告生成。
+但这些能力还没有全部接入 FastAPI：当前 Web API 只创建数据集和评测任务，Day 26 的执行器、取消管理器和报告构建器仍主要通过 `evalhub_core` 模块和测试使用。
 
-暂不包含：
+当前不包含：
 
 - 前端页面
 - 模型训练或微调
 - 分布式任务系统
 - 复杂权限系统
 - Kubernetes
+- FastAPI 的任务状态查询、取消和报告下载接口
+- v0.1.0 正式 Release 和基准实验结果
 
 ## Day 1–10阶段复盘
 
@@ -186,12 +253,7 @@ v0.1.0计划包含Provider、评分器、SQLite、FastAPI、后台任务和报�
 - 使用SQLite建表、处理主外键与事务，并完成三张表CRUD
 - 使用Git分支、README、测试和公开仓库保存可复现产物
 
-仍需在后续学习日掌握：
-
-- 真实LLM API的超时、限流、重试和成本控制
-- FastAPI分层、异步队列、后台Worker与统一错误响应
-- SQLAlchemy Repository、并发写入和数据库迁移
-- Docker运行、持久化配置和全新机器复现
+当前代码已覆盖真实 LLM 调用、重试、FastAPI 分层、异步 Worker、SQLAlchemy Repository、Docker 和数据集可复现性；后续仍需完成 Web API 的完整任务链路、v0.1.0 发布验收和空目录复现。
 
 Day 11–20主要风险：
 
@@ -369,3 +431,100 @@ docker compose down
 
 # 5. 再次启动，数据仍在
 docker compose up -d
+```
+
+健康检查：
+
+```powershell
+Invoke-RestMethod http://localhost:8000/health
+```
+
+预期返回：
+
+```json
+{"status":"ok","service":"evalhub"}
+```
+
+`docker compose down` 不会删除命名数据卷；如果执行 `docker compose down -v`，会同时删除 SQLite 数据卷，请只在确认不需要数据时使用。
+
+## Day 19–26：EvalHub MVP 核心能力
+
+仓库 `main` 已合并以下阶段的主要代码；本地工作树补齐了本次缺失的脚本、文档和 API，具体验收仍以对应测试和实测日志为准：
+
+| Day | 已实现内容 | 主要交付物 |
+|---:|---|---|
+| 19 | Pytest Fixture、参数化、Mock、禁止真实公网测试 | `tests/test_day19_*.py`、`docs/testing_strategy.md` |
+| 20 | Dockerfile、Compose、SQLite 数据卷和健康检查 | `Dockerfile`、`compose.yaml`、`.dockerignore` |
+| 21 | DeepSeek 响应映射、真实调用脚本、结构化 JSON 错误边界、成本计算 | `evalhub_core/deepseek.py`、`scripts/day21_real_call.py`、`docs/provider_response_mapping.md` |
+| 22 | BaseLLMProvider、DeepSeek/Mock Provider、Factory | `evalhub_core/llm_provider.py`、`llm_config.py` |
+| 23 | 429/5xx/超时重试、Retry-After、错误分类 | `evalhub_core/retry_policy.py`、`async_deepseek.py` |
+| 24 | 数据集 Schema、SHA-256、版本和运行参数快照 | `evalhub_core/dataset_version.py`、`scripts/validate_dataset.py` |
+| 25 | Exact Match、JSON Schema、聚合指标和分组 | `evalhub_core/evaluators.py`、`metrics.py` |
+| 26 | 任务状态机、局部失败、取消幂等和 Markdown 报告 | `evalhub_core/eval_runner.py`、`job_state_machine.py`、`report_builder.py` |
+
+对应的离线测试命令：
+
+```powershell
+python -m pytest tests/test_day19_cost.py tests/test_day19_evaluator_parametrized.py tests/test_day19_loader_tmpdir.py tests/test_day19_provider_mock.py -q
+python -m pytest tests/test_day21_deepseek_mapping.py tests/test_day22_provider_factory.py tests/test_day23_retry.py -q
+python -m pytest tests/test_day24_dataset_version.py tests/test_metrics.py tests/test_day26_pipeline.py tests/test_day26_cancel.py -q
+```
+
+Day 21 的真实调用需要本地 `.env` 和可用 API 余额，会产生费用。先复制 `.env.example` 为 `.env` 并填写密钥，再人工运行：
+
+```powershell
+Copy-Item .env.example .env
+python scripts/day21_real_call.py
+```
+
+默认测试不调用真实模型；真实调用脚本会检查单日预算、保存脱敏响应样例并记录 Token/成本。
+
+## 当前 API 实际支持范围
+
+当前 FastAPI 应用实际暴露的接口如下：
+
+| 方法 | 路径 | 作用 |
+|---|---|---|
+| GET | `/` | 返回服务信息 |
+| GET | `/health` | 返回健康状态 |
+| POST | `/datasets` | 创建数据集 |
+| POST | `/evaluations` | 创建待执行的评测任务 |
+| GET | `/evaluations/{job_id}` | 查询任务状态和 run 摘要，可分页 |
+| POST | `/evaluations/{job_id}/cancel` | 持久化取消任务，重复请求幂等 |
+| GET | `/evaluations/{job_id}/report` | 返回当前已持久化结果的 Markdown 报告 |
+
+当前 `POST /evaluations` 负责创建 `pending` 任务，查询、取消和报告接口已经接入 FastAPI；自动启动后台 Worker、实时执行模型调用和把每条输入/期望答案完整写入 API 数据库仍是后续工作。
+
+## 从空目录复现
+
+以下流程只依赖公开仓库，不引用原电脑的绝对路径：
+
+```powershell
+git clone https://github.com/xl819436-creator/EvalHub.git
+cd EvalHub
+conda create -n evalhub-py311 python=3.11 -y
+conda activate evalhub-py311
+python -m pip install -r requirements.txt
+python -m pip check
+python -m evalhub_core.health
+python scripts/validate_dataset.py examples/sample_dataset.jsonl
+python -m pytest -q
+```
+
+Windows Docker 复现还需要 Docker Desktop 正在运行：
+
+```powershell
+docker compose up --build -d
+Invoke-RestMethod http://localhost:8000/health
+docker compose ps
+docker compose down
+```
+
+复现时应记录 Python 版本、依赖安装结果、Git commit SHA、测试结果和遇到的报错；不要提交 `.env`、API Key、数据库、虚拟环境或 IDE 配置。
+
+## 开发进度与发布计划
+
+- 当前 `origin/main` 的代码基线：Day 26 报告功能合并后的提交 `69d383e`。
+- 本地工作树已补齐 Day 21 真实调用脚本、Provider 映射文档、测试策略文档和 FastAPI 任务生命周期接口，尚未 commit/push。
+- 下一步：Day 27，完成至少 30 个测试、基准实验、空目录复现和 `v0.1.0` Release。
+- 最近一次本地验证：Python 3.11.15、pytest 8.4.2，`184 passed`；真实模型调用未执行。
