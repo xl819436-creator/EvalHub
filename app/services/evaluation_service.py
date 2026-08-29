@@ -57,9 +57,7 @@ class EvaluationService:
         )
 
     def transition(self, job_id: str, new_status: str) -> None:
-        git
-        checkout
-        main        job = self._repo.get_job(job_id)
+        job = self._repo.get_job(job_id)
         if job is None:
             raise NotFoundError(f"job {job_id!r} not found")
         if new_status not in ALLOWED_TRANSITIONS.get(job.status, set()):
