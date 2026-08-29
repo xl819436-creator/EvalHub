@@ -4,6 +4,54 @@ EvalHub 是一个可复现的大语言模型自动化评测平台。本仓库从
 的Day 10开始独立维护；每日学习过程保留在
 [40day-lab](https://github.com/xl819436-creator/40day-lab)。
 
+## 目录
+
+- [Quick Start（快速开始）](#quick-start快速开始)
+- [当前状态](#当前状态)
+- [当前能力](#当前能力)
+- [环境要求](#环境要求)
+- [运行](#运行)
+- [项目结构](#项目结构)
+- [数据格式](#数据格式)
+- [数据库设计](#数据库设计)
+- [参考项目与自主实现边界](#参考项目与自主实现边界)
+- [当前实现边界与限制](#当前实现边界与限制)
+- [Day 1–10 阶段复盘](#day-110阶段复盘)
+- [Day 11：Git/GitHub 可复现协作](#day-11gitgithub可复现协作)
+- [Day 12：HTTP、REST 与接口调试](#day-12httprest与接口调试)
+- [Day 13：async/await 与异常隔离](#day-13asyncawait与异常隔离)
+- [安全](#安全)
+- [Day 15：FastAPI API](#day-15fastapi-api)
+- [容器化快速启动（Docker）](#容器化快速启动docker)
+- [Day 19–26：EvalHub MVP 核心能力](#day-1926evalhub-mvp-核心能力)
+- [当前 API 实际支持范围](#当前-api-实际支持范围)
+- [从空目录复现](#从空目录复现)
+- [开发进度与发布计划](#开发进度与发布计划)
+
+## Quick Start（快速开始）
+
+从空目录到跑通评测的最短路径：
+
+```powershell
+git clone https://github.com/xl819436-creator/EvalHub.git
+cd EvalHub
+conda create -n evalhub-py311 python=3.11 -y
+conda activate evalhub-py311
+python -m pip install -r requirements.txt
+python -m pip check
+python -m evalhub_core.health
+python -m pytest -q
+```
+
+启动 API（Docker 方式，需要 Docker Desktop 正在运行）：
+
+```powershell
+docker compose up --build -d
+# 浏览器打开 http://localhost:8000/docs
+```
+
+完整复现 SOP 见[从空目录复现](#从空目录复现)，接口清单见[当前 API 实际支持范围](#当前-api-实际支持范围)。
+
 ## 当前状态
 
 - `origin/main` 代码基线已推进到 Day 26；本地工作树已进一步补齐 FastAPI 生命周期接口、Day 21 真实调用脚本和配套文档。
