@@ -26,6 +26,8 @@ EvalHub 是一个可复现的大语言模型自动化评测平台。本仓库从
 - [Day 19–26：EvalHub MVP 核心能力](#day-1926evalhub-mvp-核心能力)
 - [当前 API 实际支持范围](#当前-api-实际支持范围)
 - [从空目录复现](#从空目录复现)
+- [实验结果](#实验结果)
+- [失败案例](#失败案例)
 - [开发进度与发布计划](#开发进度与发布计划)
 
 ## Quick Start（快速开始）
@@ -569,9 +571,30 @@ docker compose down
 
 复现时应记录 Python 版本、依赖安装结果、Git commit SHA、测试结果和遇到的报错；不要提交 `.env`、API Key、数据库、虚拟环境或 IDE 配置。
 
+## 实验结果
+
+Day 27 并发基准实验（Mock 评测，50 条固定数据，Exact Match，每条模拟 0.01s 等待；原始输出 `docs/benchmark_raw.txt`，完整报告 [docs/benchmark.md](docs/benchmark.md)）：
+
+| 并发度 | 吞吐（条/秒） | 平均延迟（ms） | P95（ms） | 失败率 |
+|---:|---:|---:|---:|---:|
+| 1 | 63.38 | 15.76 | 16.10 | 10% |
+| 5 | 323.01 | 15.43 | 16.32 | 10% |
+| 10 | 656.26 | 15.17 | 15.60 | 10% |
+
+- 吞吐量随并发度近似线性提升（5 并发约 5.1 倍、10 并发约 10.4 倍）；
+- P95 未随并发单调下降（5 并发 16.32ms 略高于 1 并发 16.10ms）——P95 是尾延迟，受调度与资源竞争影响；
+- 失败率固定 10%，由数据集中刻意构造的失败用例决定，与并发度无关；
+- 所有数字来自 `docs/benchmark_raw.txt` 的原始输出，未做任何修改，可通过 `python -m scripts.benchmark_concurrency` 复现。
+
+## 失败案例
+
+- **Git 合并冲突（Day 11，记录见 [docs/conflict_notes.md](docs/conflict_notes.md)）**：从同一个 `main` 创建 `practice/conflict-a` 与 `practice/conflict-b` 两个分支，都修改 README 第一行，Git 无法自动合并 → merge conflict。解决：逐个冲突块选择保留内容并说明依据，冲突处理过程本身作为可复现的练习产物存档。
+- **固定分块切断语义（Day 27 基准实验中的设计对照）**：评测平台的"按字符硬切"思维（对应 RAGEval 的 FixedChunker）在 RAG 场景会把函数从中间切断——EvalHub 的评测设计因此坚持按样本/任务粒度组织数据，不做无边界的长文本硬切。
+
+
 ## 开发进度与发布计划
 
-- 当前 `origin/main` 代码基线：Day 27 收尾提交 `4970229`（含 FastAPI 任务生命周期、Day 21 真实调用脚本与文档等）。
+- 当前 `origin/main` 代码基线：Day 27 收尾提交 `d6d7143`（含 benchmark 报告、README 导航与 Quick Start、Day 27 验收记录）。
 - 已完成：30+ 测试（实际 `184 passed`）、1/5/10 并发基准实验（`docs/benchmark.md` + `docs/benchmark_raw.txt`）、空目录复现、README 导航与 Quick Start。
-- 剩余：GitHub Release 网页发布（tag `v0.1.0` 已推送）。
+- GitHub Release：`v0.1.0` 已发布（2026-08-29），正文含 Features / Known limitations / Reproduce。
 - 最近一次复现验证：Python 3.11.15、pytest 8.4.2，`184 passed`；真实模型调用未执行。
