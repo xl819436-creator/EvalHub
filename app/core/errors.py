@@ -29,6 +29,11 @@ class ConflictError(AppError):
     code = "CONFLICT"
 
 
+class BadRequestError(AppError):
+    status_code = 400
+    code = "INVALID_REQUEST"
+
+
 def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 

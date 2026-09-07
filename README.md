@@ -56,7 +56,7 @@ docker compose up --build -d
 
 ## 当前状态
 
-- 代码基线已推进到 Day 27 收尾：全量测试 `184 passed`，基准实验完成（见 [docs/benchmark.md](docs/benchmark.md)），空目录复现通过。
+- 代码基线已推进到 Day 27 收尾；本次 API 闭环补全后全量测试为 `188 passed`，基准实验完成（见 [docs/benchmark.md](docs/benchmark.md)），空目录复现通过。
 - tag `v0.1.0` 已创建并推送；GitHub Release 发布后即完成 v0.1.0 交付。
 - 本 README 描述的是当前工作树；个人学习 Day 是否完成，仍以学习记录和验收结果为准。
 
@@ -68,7 +68,7 @@ docker compose up --build -d
 - 使用`BaseProvider`隔离业务逻辑与模型厂商
 - 使用`MockProvider`模拟success、timeout、429和invalid JSON
 - 使用Pydantic校验请求、响应、测试样本和Token用量
-- 使用SQLite保存datasets、evaluation jobs和evaluation runs
+- 使用SQLite保存datasets、evaluation jobs和evaluation runs；每条 run 保留 input、expected、actual、reason 便于失败追溯
 - 为三张SQLite表提供完整CRUD、外键和事务保护
 - 使用健康检查命令验证健康检查入口
 - 使用HTTPX探测接口，并区分HTTP、超时和网络错误
@@ -81,7 +81,7 @@ docker compose up --build -d
 - 对数据集执行Pydantic校验、规范化SHA-256哈希和运行参数快照
 - 提供Exact Match、JSON Schema评分器，以及成功率、准确率、格式率、P50/P95、Token和成本聚合
 - 生成包含配置快照、分组指标、失败案例和已知限制的Markdown报告
-- 提供FastAPI接口：数据集创建、评测任务创建/查询/取消和 Markdown 报告
+- 提供FastAPI接口：模型发现、数据集创建/查询、评测任务创建/本地执行/查询/取消和 Markdown 报告
 
 ## 环境要求
 
@@ -277,8 +277,7 @@ CRUD均为学习者独立实现。本项目不是OpenAI Evals的Fork。
 
 ## 当前实现边界与限制
 
-截至 Day 26，核心评测链路已经包含 Provider、评分器、SQLite、任务执行、取消和报告生成。
-但这些能力还没有全部接入 FastAPI：当前 Web API 只创建数据集和评测任务，Day 26 的执行器、取消管理器和报告构建器仍主要通过 `evalhub_core` 模块和测试使用。
+核心评测链路已经包含 Provider、评分器、SQLite、任务执行、取消和报告生成；本次补全把小型本地执行链路也接入 FastAPI。
 
 当前不包含：
 
@@ -287,8 +286,8 @@ CRUD均为学习者独立实现。本项目不是OpenAI Evals的Fork。
 - 分布式任务系统
 - 复杂权限系统
 - Kubernetes
-- FastAPI 的任务状态查询、取消和报告下载接口
-- v0.1.0 正式 Release 和基准实验结果
+- 生产级后台队列、分布式执行和复杂权限系统
+- 真实模型的批量执行仍需显式配置 API Key；演示入口只允许 `mock/dummy`
 
 ## Day 1–10阶段复盘
 
@@ -302,7 +301,7 @@ CRUD均为学习者独立实现。本项目不是OpenAI Evals的Fork。
 - 使用SQLite建表、处理主外键与事务，并完成三张表CRUD
 - 使用Git分支、README、测试和公开仓库保存可复现产物
 
-当前代码已覆盖真实 LLM 调用、重试、FastAPI 分层、异步 Worker、SQLAlchemy Repository、Docker 和数据集可复现性；后续仍需完成 Web API 的完整任务链路、v0.1.0 发布验收和空目录复现。
+当前代码已覆盖真实 LLM Provider、重试、FastAPI 分层、异步 Worker、SQLAlchemy Repository、Docker 和数据集可复现性；Web API 的最小创建→执行→查询→报告链路已经打通。
 
 Day 11–20主要风险：
 
@@ -536,13 +535,16 @@ python scripts/day21_real_call.py
 |---|---|---|
 | GET | `/` | 返回服务信息 |
 | GET | `/health` | 返回健康状态 |
+| GET | `/models` | 返回已注册的 Provider |
 | POST | `/datasets` | 创建数据集 |
+| GET | `/datasets/{dataset_id}` | 查询数据集元信息和样本数量 |
 | POST | `/evaluations` | 创建待执行的评测任务 |
+| POST | `/evaluations/{job_id}/run` | 同步执行本地 `mock/dummy` 任务并持久化 runs |
 | GET | `/evaluations/{job_id}` | 查询任务状态和 run 摘要，可分页 |
 | POST | `/evaluations/{job_id}/cancel` | 持久化取消任务，重复请求幂等 |
 | GET | `/evaluations/{job_id}/report` | 返回当前已持久化结果的 Markdown 报告 |
 
-当前 `POST /evaluations` 负责创建 `pending` 任务，查询、取消和报告接口已经接入 FastAPI；自动启动后台 Worker、实时执行模型调用和把每条输入/期望答案完整写入 API 数据库仍是后续工作。
+`POST /evaluations` 创建 `pending` 任务，`POST /evaluations/{job_id}/run` 执行本地 `mock/dummy` Provider，随后可查询状态或下载 Markdown 报告。样本现在持久化在 SQLite 中；后台队列、并行 Worker 和真实模型的生产级调度仍未纳入 MVP。
 
 ## 从空目录复现
 
@@ -595,6 +597,6 @@ Day 27 并发基准实验（Mock 评测，50 条固定数据，Exact Match，每
 ## 开发进度与发布计划
 
 - 当前 `origin/main` 代码基线：Day 27 收尾提交 `d6d7143`（含 benchmark 报告、README 导航与 Quick Start、Day 27 验收记录）。
-- 已完成：30+ 测试（实际 `184 passed`）、1/5/10 并发基准实验（`docs/benchmark.md` + `docs/benchmark_raw.txt`）、空目录复现、README 导航与 Quick Start。
+- 已完成：30+ 测试（原始基线 `184 passed`；本次 API 补全后 `188 passed`）、1/5/10 并发基准实验（`docs/benchmark.md` + `docs/benchmark_raw.txt`）、空目录复现、README 导航与 Quick Start。
 - GitHub Release：`v0.1.0` 已发布（2026-08-29），正文含 Features / Known limitations / Reproduce。
-- 最近一次复现验证：Python 3.11.15、pytest 8.4.2，`184 passed`；真实模型调用未执行。
+- 最近一次基线复现验证：Python 3.11.15、pytest 8.4.2，`184 passed`；本次本地 API 执行链路补全后为 `188 passed`；真实模型调用未执行。

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies import get_dataset_service
 from app.schemas.dataset import DatasetCreate, DatasetOut
 from app.services.dataset_service import DatasetService
+from evalhub_core.llm_provider import ProviderFactory
 
 router = APIRouter(tags=["datasets"])
 
@@ -22,6 +23,12 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "evalhub"}
 
 
+@router.get("/models")
+def list_models() -> dict[str, list[str]]:
+    """列出当前代码注册的 Provider；便于客户端先发现可用模型。"""
+    return {"models": ProviderFactory.available()}
+
+
 @router.post("/datasets", status_code=201, response_model=DatasetOut)
 def create_dataset(
     payload: DatasetCreate,
@@ -29,3 +36,12 @@ def create_dataset(
 ) -> DatasetOut:
     """创建数据集（业务在 service）。"""
     return service.create(payload)
+
+
+@router.get("/datasets/{dataset_id}", response_model=DatasetOut)
+def get_dataset(
+    dataset_id: str,
+    service: DatasetService = Depends(get_dataset_service),
+) -> DatasetOut:
+    """查询已保存数据集的元信息和样本数量。"""
+    return service.get(dataset_id)

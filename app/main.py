@@ -5,11 +5,11 @@ from fastapi import FastAPI
 
 from app.api import datasets, evaluations
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import ensure_schema
 from app.core.errors import register_error_handlers
 from app.core.middleware import RequestContextMiddleware
 
-Base.metadata.create_all(bind=engine)
+ensure_schema()
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 

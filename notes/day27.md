@@ -43,7 +43,13 @@
 | 10. 查询状态 | `GET /evaluations/job-ds-1-1` | ✅ 返回 job 详情与 run 摘要 |
 | 11. 导出报告 | `GET /evaluations/job-ds-1-1/report` | ✅ 生成 Markdown 报告 |
 
-说明：当前 API 的实际支持范围是"创建 pending 任务 + 查询 + 取消 + 报告"，后台 Worker 自动执行仍是后续工作，报告数字来自已持久化的 EvaluationRun 表。
+说明（2026-08-29 基线记录）：当时 API 的实际支持范围是"创建 pending 任务 + 查询 + 取消 + 报告"，后台 Worker 自动执行仍是后续工作，报告数字来自已持久化的 EvaluationRun 表。
+
+## 2026-09-07：API 闭环补全
+
+- 新增 `GET /models`、`GET /datasets/{dataset_id}` 和 `POST /evaluations/{job_id}/run`。
+- 数据集样本持久化到 SQLite；本地 `mock/dummy` 执行会生成 `EvaluationRun`，并可查询真实计数与报告。
+- EvalHub 全量测试由基线 `184 passed` 增加到 `188 passed`；真实模型仍需显式配置密钥，未在自动化测试中调用。
 
 ## 4. 实战 3：对一个失败用例写最小可复现步骤
 

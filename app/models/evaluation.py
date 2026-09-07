@@ -1,7 +1,7 @@
 """评测任务与运行记录 ORM 模型（一对多）。"""
 from __future__ import annotations
 
-from sqlalchemy import JSON, ForeignKey, Integer, String
+from sqlalchemy import JSON, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -16,6 +16,7 @@ class EvaluationJob(Base):
     providers: Mapped[list] = mapped_column(JSON, nullable=False)
     evaluators: Mapped[list] = mapped_column(JSON, nullable=False)
     concurrency: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    temperature: Mapped[float] = mapped_column(Float, nullable=False, default=0.7)
 
     dataset: Mapped["Dataset"] = relationship(back_populates="jobs")
     runs: Mapped[list["EvaluationRun"]] = relationship(
@@ -31,5 +32,9 @@ class EvaluationRun(Base):
     sample_index: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     score: Mapped[float | None] = mapped_column(nullable=True)
+    input: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actual: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     job: Mapped["EvaluationJob"] = relationship(back_populates="runs")

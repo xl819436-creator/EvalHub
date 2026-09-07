@@ -98,3 +98,96 @@ def test_report_contains_counts_and_failure_records():
     assert "| all | 3 | 33.33% | 0.50 |" in response.text
     assert "run-1" in response.text
     assert "run-2" in response.text
+
+
+def test_get_dataset_returns_persisted_sample_count():
+    created = client.post(
+        "/datasets",
+        json={"name": "lookup", "samples": [{"input": "hi", "expected_output": "hi"}]},
+    )
+    dataset_id = created.json()["dataset_id"]
+
+    response = client.get(f"/datasets/{dataset_id}")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "dataset_id": dataset_id,
+        "name": "lookup",
+        "sample_count": 1,
+    }
+
+
+def test_run_mock_persists_results_and_is_idempotent():
+    dataset = client.post(
+        "/datasets",
+        json={
+            "name": "mock-run",
+            "samples": [
+                {"input": "hi", "expected_output": "Mock response: hi"},
+                {"input": "bye", "expected_output": "wrong"},
+            ],
+        },
+    )
+    job = client.post(
+        "/evaluations",
+        json={
+            "dataset_id": dataset.json()["dataset_id"],
+            "providers": ["mock"],
+            "evaluators": ["exact_match"],
+        },
+    )
+    job_id = job.json()["job_id"]
+
+    first = client.post(f"/evaluations/{job_id}/run")
+    second = client.post(f"/evaluations/{job_id}/run")
+
+    assert first.status_code == 200
+    assert first.json()["status"] == "completed_with_errors"
+    assert second.json() == first.json()
+    status = client.get(f"/evaluations/{job_id}").json()
+    assert status["total_runs"] == 2
+    assert status["completed_runs"] == 1
+    assert status["failed_runs"] == 1
+    db = TestingSession()
+    runs = sorted(db.query(EvaluationRun).filter(EvaluationRun.job_id == job_id).all(), key=lambda run: run.sample_index)
+    assert runs[0].input == "hi"
+    assert runs[0].actual == "Mock response: hi"
+    assert runs[1].expected == "wrong"
+    assert "exact_match" in runs[1].reason
+    db.close()
+
+
+def test_run_dummy_records_failed_exact_match_without_network():
+    dataset = client.post(
+        "/datasets",
+        json={"name": "dummy-run", "samples": [{"input": "hi", "expected_output": "hi"}]},
+    )
+    job = client.post(
+        "/evaluations",
+        json={
+            "dataset_id": dataset.json()["dataset_id"],
+            "providers": ["dummy"],
+            "evaluators": ["exact_match"],
+        },
+    )
+
+    response = client.post(f"/evaluations/{job.json()['job_id']}/run")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "completed_with_errors"
+    assert client.get(f"/evaluations/{job.json()['job_id']}").json()["failed_runs"] == 1
+
+
+def test_run_deepseek_is_rejected_before_any_paid_call():
+    job_id = _create_job()
+    db = TestingSession()
+    job = db.get(EvaluationJob, job_id)
+    assert job is not None
+    job.providers = ["deepseek"]
+    db.commit()
+    db.close()
+
+    response = client.post(f"/evaluations/{job_id}/run")
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "INVALID_REQUEST"

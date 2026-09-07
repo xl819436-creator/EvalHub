@@ -1,11 +1,13 @@
-"""评测任务业务逻辑：状态转换 + 持久化。"""
+"""评测任务业务逻辑：状态转换、执行与持久化。"""
 from __future__ import annotations
+
+import json
 
 from sqlalchemy.orm import Session
 
-from app.core.errors import NotFoundError
+from app.core.errors import BadRequestError, NotFoundError
 from app.models.dataset import Dataset
-from app.models.evaluation import EvaluationJob
+from app.models.evaluation import EvaluationJob, EvaluationRun
 from app.repositories.job_repository import JobRepository
 from app.schemas.evaluation import (
     EvaluationCreate,
@@ -14,6 +16,10 @@ from app.schemas.evaluation import (
     RunResponse,
 )
 from evalhub_core.report_builder import build_markdown_report
+from evalhub_core.evaluators import EvaluationItem, EvaluatorRegistry
+from evalhub_core.llm_config import LLMConfig
+from evalhub_core.llm_provider import ProviderFactory
+from evalhub_core.schemas import LLMRequest
 
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "pending": {"running", "cancelled"},
@@ -25,6 +31,7 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
 }
 
 TERMINAL_STATUSES = {"completed", "completed_with_errors", "failed", "cancelled"}
+LOCAL_EXECUTABLE_PROVIDERS = {"mock", "dummy"}
 
 
 class EvaluationService:
@@ -45,6 +52,7 @@ class EvaluationService:
             providers=payload.providers,
             evaluators=payload.evaluators,
             concurrency=payload.concurrency,
+            temperature=payload.temperature,
         )
         self._repo.create_job(job)
         return JobResponse(
@@ -55,6 +63,104 @@ class EvaluationService:
             evaluators=job.evaluators,
             concurrency=job.concurrency,
         )
+
+    def run(self, job_id: str):
+        """同步执行一个小型本地任务，并把每条样本结果写入数据库。
+
+        # ponytail: 先提供可复现的同步入口；需要吞吐量时再替换成队列/Worker。
+        """
+        job = self.get(job_id)
+        if job.status in TERMINAL_STATUSES:
+            return job
+        if job.status != "pending":
+            raise BadRequestError(f"job {job_id!r} is not ready to run")
+        if len(job.providers) != 1:
+            raise BadRequestError("当前执行入口每个任务只支持一个 provider")
+
+        provider_name = job.providers[0]
+        if provider_name not in LOCAL_EXECUTABLE_PROVIDERS:
+            raise BadRequestError(
+                f"provider {provider_name!r} 暂不支持本地执行，请使用 mock 或 dummy"
+            )
+        try:
+            evaluators = [EvaluatorRegistry.get(name) for name in job.evaluators]
+        except ValueError as exc:
+            raise BadRequestError(str(exc)) from exc
+
+        dataset = self._db.get(Dataset, job.dataset_id)
+        samples = (dataset.samples if dataset is not None else None) or []
+        if not samples:
+            raise BadRequestError("dataset 没有可执行的 samples")
+
+        self._repo.update_progress(job, "running")
+        provider = ProviderFactory.create(
+            LLMConfig(
+                provider=provider_name,
+                model=provider_name,
+                temperature=job.temperature,
+            )
+        )
+        failed_runs = 0
+        for index, sample in enumerate(samples):
+            run_status = "completed"
+            score = 0.0
+            actual = ""
+            expected = sample["expected_output"]
+            expected_text = (
+                expected
+                if isinstance(expected, str)
+                else json.dumps(expected, ensure_ascii=False, sort_keys=True)
+            )
+            reason = None
+            try:
+                response = provider.generate(
+                    LLMRequest(
+                        model=provider_name,
+                        input=sample["input"],
+                        temperature=job.temperature,
+                    )
+                )
+                actual = response.content or ""
+                if not response.success:
+                    run_status = "failed"
+                    reason = response.error_type or "provider_error"
+                else:
+                    item = EvaluationItem(
+                        id=f"{job.id}-run-{index}",
+                        category="all",
+                        input=sample["input"],
+                        expected=expected_text,
+                        actual=actual,
+                    )
+                    for evaluator in evaluators:
+                        item = evaluator.evaluate(item)
+                    score = sum(item.scores.values()) / len(item.scores)
+                    if not item.passed:
+                        run_status = "failed"
+                        reason = item.reason
+            except Exception as exc:
+                run_status = "failed"
+                reason = f"{type(exc).__name__}: {exc}"
+
+            if run_status == "failed":
+                failed_runs += 1
+            self._db.add(
+                EvaluationRun(
+                    id=f"{job.id}-run-{index}",
+                    job_id=job.id,
+                    sample_index=index,
+                    status=run_status,
+                    score=score,
+                    input=sample["input"],
+                    expected=expected_text,
+                    actual=actual,
+                    reason=reason,
+                )
+            )
+
+        self._db.commit()
+        final_status = "completed_with_errors" if failed_runs else "completed"
+        return self._repo.update_progress(job, final_status)
 
     def transition(self, job_id: str, new_status: str) -> None:
         job = self._repo.get_job(job_id)
@@ -120,9 +226,9 @@ class EvaluationService:
         failures = [
             {
                 "id": run.id,
-                "expected": "未持久化",
-                "actual": "未持久化",
-                "reason": run.status,
+                "expected": run.expected or "未持久化",
+                "actual": run.actual or "未持久化",
+                "reason": run.reason or run.status,
             }
             for run in runs
             if run.status != "completed"

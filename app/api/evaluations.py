@@ -20,6 +20,15 @@ def create_evaluation(
     return service.create(payload)
 
 
+@router.post("/evaluations/{job_id}/run", response_model=JobResponse)
+def run_evaluation(
+    job_id: str,
+    service: EvaluationService = Depends(get_evaluation_service),
+) -> JobResponse:
+    """执行本地 mock/dummy 任务；重复执行终态任务保持幂等。"""
+    return service.to_response(service.run(job_id))
+
+
 @router.get("/evaluations/{job_id}", response_model=JobStatusResponse)
 def get_evaluation(
     job_id: str,

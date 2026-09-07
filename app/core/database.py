@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 # 数据库文件路径：优先读环境变量 EVALHUB_DB_PATH（Docker 数据卷需要），
@@ -25,6 +25,26 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 class Base(DeclarativeBase):
     """所有 ORM 模型的基类。"""
+
+
+def ensure_schema() -> None:
+    """创建表，并为 v0.1.0 已存在的 SQLite 数据库补齐新列。"""
+    Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        dataset_columns = {column["name"] for column in inspect(engine).get_columns("datasets")}
+        if "samples" not in dataset_columns:
+            connection.execute(text("ALTER TABLE datasets ADD COLUMN samples JSON"))
+        job_columns = {column["name"] for column in inspect(engine).get_columns("evaluation_jobs")}
+        if "temperature" not in job_columns:
+            connection.execute(
+                text("ALTER TABLE evaluation_jobs ADD COLUMN temperature FLOAT NOT NULL DEFAULT 0.7")
+            )
+        run_columns = {column["name"] for column in inspect(engine).get_columns("evaluation_runs")}
+        for column_name in ("input", "expected", "actual", "reason"):
+            if column_name not in run_columns:
+                connection.execute(
+                    text(f"ALTER TABLE evaluation_runs ADD COLUMN {column_name} TEXT")
+                )
 
 
 def get_db():
